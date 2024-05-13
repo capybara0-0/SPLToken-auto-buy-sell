@@ -126,6 +126,7 @@ class RaydiumSwap {
       directionIn,
     );
     console.log({ minAmountOut, amountIn });
+
     const userTokenAccounts = await this.getOwnerTokenAccounts();
     const swapTransaction = await Liquidity.makeSwapInstructionSimple({
       connection: this.connection,
@@ -215,9 +216,9 @@ class RaydiumSwap {
   }
 
   /**
-   * Simulates a versioned transaction.
+   * Simulates a Legacy transaction.
    * @async
-   * @param {VersionedTransaction} tx - The versioned transaction to simulate.
+   * @param {LegacyTransaction} tx - The Legacy transaction to simulate.
    * @returns {Promise<any>} The simulation result.
    */
   async simulateLegacyTransaction(tx: Transaction) {
