@@ -8,83 +8,104 @@ import chalk from "chalk";
  * Performs a token swap on the Raydium protocol.
  * Depending on the configuration, it can execute the swap or simulate it.
  */
-const swap = async () => {
-  /**
-   * The RaydiumSwap instance for handling swaps.
-   */
+async function main() {
   const raydiumSwap = new RaydiumSwap(
     process.env.RPC_URL,
     process.env.WALLET_PRIVATE_KEY,
-  );
-  console.log(chalk.blue(`[INFO] Raydium swap initialized`));
-  console.log(
-    `Swapping ${chalk.green(swapConfig.tokenAAmount)} of ${chalk.yellow(
-      swapConfig.tokenAAddress,
-    )} for ${chalk.yellow(swapConfig.tokenBAddress)}`,
   );
 
   /**
    * Load pool keys from the Raydium API to enable finding pool information.
    */
   await raydiumSwap.loadPoolKeys(swapConfig.liquidityFile);
+  console.log(chalk.blue(`[INFO] Raydium swap initialized`));
   console.log(chalk.blue(`[INFO] Loaded pool keys`));
 
-  /**
-   * Find pool information for the given token pair.
-   */
-  const poolInfo = raydiumSwap.findPoolInfoForTokens(
-    swapConfig.tokenAAddress,
-    swapConfig.tokenBAddress,
-  );
-  if (!poolInfo) {
-    console.error("[ERROR] Pool info not found");
-    return "Pool info not found";
-  } else {
-    console.log(chalk.blue("[INFO] Found pool info"));
-  }
+  const runSwap = async () => {
+    while (true) {
+      console.log(
+        `Swapping ${chalk.green(swapConfig.tokenAAmount)} of ${chalk.yellow(
+          swapConfig.tokenAAddress,
+        )} for ${chalk.yellow(swapConfig.tokenBAddress)}`,
+      );
 
-  /**
-   * Prepare the swap transaction with the given parameters.
-   */
-  const tx = await raydiumSwap.getSwapTransaction(
-    swapConfig.tokenBAddress,
-    swapConfig.tokenAAmount,
-    poolInfo,
-    swapConfig.maxLamports,
-    swapConfig.useVersionedTransaction,
-    swapConfig.direction,
-  );
+      /**
+       * Find pool information for the given token pair.
+       */
+      const poolInfo = raydiumSwap.findPoolInfoForTokens(
+        swapConfig.tokenAAddress,
+        swapConfig.tokenBAddress,
+      );
+      if (!poolInfo) {
+        console.error(chalk.red("[ERROR] Pool info not found. "));
+        await new Promise((resolve) =>
+          setTimeout(resolve, swapConfig.retryIntervalMs),
+        );
+        continue;
+      } else {
+        console.log(chalk.blue("[INFO] Pool info found. "));
+      }
 
-  /**
-   * Depending on the configuration, execute or simulate the swap.
-   */
-  if (swapConfig.executeSwap) {
-    /**
-     * Send the transaction to the network and log the transaction ID.
-     */
-    const txid = swapConfig.useVersionedTransaction
-      ? await raydiumSwap.sendVersionedTransaction(
-          tx as VersionedTransaction,
-          swapConfig.maxRetries,
-        )
-      : await raydiumSwap.sendLegacyTransaction(
-          tx as Transaction,
-          swapConfig.maxRetries,
+      try {
+        /**
+         * Prepare the swap transaction with the given parameters.
+         */
+        const tx = await raydiumSwap.getSwapTransaction(
+          swapConfig.tokenBAddress,
+          swapConfig.tokenAAmount,
+          poolInfo,
+          swapConfig.maxLamports,
+          swapConfig.useVersionedTransaction,
+          swapConfig.direction,
         );
 
-    console.log(`https://solscan.io/tx/${txid}`);
-  } else {
-    /**
-     * Simulate the transaction and log the result.
-     */
-    const simRes = swapConfig.useVersionedTransaction
-      ? await raydiumSwap.simulateVersionedTransaction(
-          tx as VersionedTransaction,
-        )
-      : await raydiumSwap.simulateLegacyTransaction(tx as Transaction);
+        /**
+         * Depending on the configuration, execute or simulate the swap.
+         */
+        if (swapConfig.executeSwap) {
+          /**
+           * Send the transaction to the network and log the transaction ID.
+           */
+          const txid = swapConfig.useVersionedTransaction
+            ? await raydiumSwap.sendVersionedTransaction(
+                tx as VersionedTransaction,
+                swapConfig.maxRetries,
+              )
+            : await raydiumSwap.sendLegacyTransaction(
+                tx as Transaction,
+                swapConfig.maxRetries,
+              );
 
-    console.log(simRes);
-  }
-};
+          console.log(`https://solscan.io/tx/${txid}`);
+        } else {
+          /**
+           * Simulate the transaction and log the result.
+           */
+          const simRes = swapConfig.useVersionedTransaction
+            ? await raydiumSwap.simulateVersionedTransaction(
+                tx as VersionedTransaction,
+              )
+            : await raydiumSwap.simulateLegacyTransaction(tx as Transaction);
 
-swap();
+          // console.log(simRes);
+        }
+      } catch (error) {
+        console.error("[ERROR]", error);
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, swapConfig.intervalMs),
+      );
+    }
+  };
+
+  // Handle SIGINT for graceful shutdown
+  process.on("SIGINT", () => {
+    console.log(chalk.red("Interrupted, shutting down..."));
+    process.exit();
+  });
+
+  await runSwap();
+}
+
+main().catch(console.error);
