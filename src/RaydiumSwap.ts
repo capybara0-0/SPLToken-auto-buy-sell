@@ -118,12 +118,14 @@ class RaydiumSwap {
     maxLamports: number = 100000,
     useVersionedTransaction = true,
     fixedSide: "in" | "out" = "in",
+    slippageIn: number,
   ): Promise<Transaction | VersionedTransaction> {
     const directionIn = poolKeys.quoteMint.toString() == toToken;
     const { minAmountOut, amountIn } = await this.calcAmountOut(
       poolKeys,
       amount,
       directionIn,
+      slippageIn,
     );
     console.log({ minAmountOut, amountIn });
 
@@ -148,6 +150,11 @@ class RaydiumSwap {
         microLamports: maxLamports,
       },
     });
+
+    //[DEVELOPMENT]
+    console.log(
+      `[DEVELOPMENT] amountIn: ${amountIn.toFixed()}, amountOut: ${minAmountOut.toFixed()}`,
+    );
 
     const recentBlockhashForSwap = await this.connection.getLatestBlockhash();
     const instructions =
@@ -269,6 +276,7 @@ class RaydiumSwap {
     poolKeys: LiquidityPoolKeys,
     rawAmountIn: number,
     swapInDirection: boolean,
+    slippageIn: number,
   ) {
     const poolInfo = await Liquidity.fetchInfo({
       connection: this.connection,
@@ -292,13 +300,15 @@ class RaydiumSwap {
       currencyInMint,
       currencyInDecimals,
     );
+
     const amountIn = new TokenAmount(currencyIn, rawAmountIn, false);
     const currencyOut = new Token(
       TOKEN_PROGRAM_ID,
       currencyOutMint,
       currencyOutDecimals,
     );
-    const slippage = new Percent(5, 100); // 5% slippage
+
+    const slippage = new Percent(slippageIn, 100);
 
     const {
       amountOut,
@@ -314,6 +324,8 @@ class RaydiumSwap {
       currencyOut,
       slippage,
     });
+
+    console.log(`Parameters slippage: ${slippage.toFixed()}`);
 
     return {
       amountIn,
