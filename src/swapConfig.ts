@@ -15,5 +15,5 @@ export const swapConfig = {
 
   retryIntervalMs: 3000,
 
-  intervalMs: 3000,
+  intervalMs: 5000,
 };

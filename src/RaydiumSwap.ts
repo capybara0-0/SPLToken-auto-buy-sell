@@ -151,9 +151,9 @@ class RaydiumSwap {
       },
     });
 
-    //[DEVELOPMENT]
+    //[DEBUG]
     console.log(
-      `[DEVELOPMENT] amountIn: ${amountIn.toFixed()}, amountOut: ${minAmountOut.toFixed()}`,
+      `[DEBUG] amountIn: ${amountIn.toFixed()}, amountOut: ${minAmountOut.toFixed()}`,
     );
 
     const recentBlockhashForSwap = await this.connection.getLatestBlockhash();
@@ -324,8 +324,6 @@ class RaydiumSwap {
       currencyOut,
       slippage,
     });
-
-    console.log(`Parameters slippage: ${slippage.toFixed()}`);
 
     return {
       amountIn,
