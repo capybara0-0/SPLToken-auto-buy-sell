@@ -118,7 +118,7 @@ async function performSwap(
             );
 
         // DEBUG
-        // console.log(`[DEBUG] `, simRes);
+        console.log(`[DEBUG] `, simRes);
       }
       return;
     }
@@ -144,7 +144,8 @@ async function performSwap(
           transaction as Transaction,
           swapConfig.maxRetries,
         );
-    logMessage(`Transaction sent: https://solscan.io/tx/${txid}`, "warning");
+
+    logMessage(`Transaction sent: https://solscan.io/tx/${txid}`, "info");
   } else {
     const simRes = swapConfig.useVersionedTransaction
       ? await raydiumSwap.simulateVersionedTransaction(
@@ -153,7 +154,7 @@ async function performSwap(
       : await raydiumSwap.simulateLegacyTransaction(transaction as Transaction);
 
     //[DEBUG]
-    // console.log(`[DEBUG] `, simRes);
+    console.log(`[DEBUG] `, simRes);
   }
 }
 

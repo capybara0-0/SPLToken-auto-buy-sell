@@ -11,9 +11,9 @@ export const swapConfig = {
 
   liquidityFile: "https://api.raydium.io/v2/sdk/liquidity/mainnet.json",
 
-  OwnerAddress: "3Gf1W1uWQ286zcNYmZxYXBrhgACP8r174zcgE2TxRZCP",
+  OwnerAddress: "",
 
-  exitTarget: 1.5, // Percentage
+  exitTarget: 15, // Percentage
 
   maxRetries: 20,
 

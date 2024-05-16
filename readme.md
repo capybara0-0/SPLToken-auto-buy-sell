@@ -1,45 +1,45 @@
-# SPL-TOKEN auto buy & sell
+# SPL-Token Auto Buy & Sell
 
-⚠️⚠️ currently the script only swaps token manually, it's still in development.
+This automated script facilitates the swapping of targeted SPL-tokens and SOL on Raydium. Users can customize the script's parameters according to their preferences. For testing purposes, the script can be set to simulate swaps by setting `executeSwap: false` in `src/swapConfig.ts`.
 
-## requirements
+## Requirements
 
-- NodeJS
-- Typescript
-- yarn
+- Node.js
+- TypeScript
+- Yarn
 
 ## Usage
 
-- Create a `.env` or rename the existing `.env.example` file and replace with your keys.
-  ```env
-  RPC_URL=YOUR_RPC_URL
-  WALLET_PRIVATE_KEY=YOUR_PRIVATE_KEY
-  ```
-- Navigate to `src/swapConfig.ts` to the modify parameters.
+1. **Environment Setup:**
 
-  ```ts
-  export const swapConfig = {
-    executeSwap: false, // Send tx when true, simulate tx when false
+   - Rename the existing `.env.example` file to `.env` or create a new `.env` file.
+   - Populate the `.env` file with your keys:
+     ```env
+     RPC_URL=YOUR_RPC_URL
+     WALLET_PRIVATE_KEY=YOUR_PRIVATE_KEY
+     ```
 
-    useVersionedTransaction: true,
+2. **Configuration:**
 
-    tokenAAddress: "So11111111111111111111111111111111111111112", // Token to swap for the other, SOL in this case
+   - Open `src/swapConfig.ts` to adjust the script parameters:
+     ```ts
+     export const swapConfig = {
+       executeSwap: true, // Executes transaction when true, simulates when false
+       useVersionedTransaction: false,
+       tokenAAddress: "So11111111111111111111111111111111111111112", // Token to be swapped, SOL by default
+       maxLamports: 2000000, // Micro lamports for priority fee
+       direction: "in" as "in" | "out", // Direction of swap: 'in' or 'out'
+       liquidityFile: "https://api.raydium.io/v2/sdk/liquidity/mainnet.json",
+       OwnerAddress: "<enter your wallet address here>",
+       exitTarget: 15, // Target percentage for exit strategy
+       maxRetries: 20,
+       retryIntervalMs: 3000,
+       intervalMs: 5000,
+     };
+     ```
 
-    maxLamports: 1500000, // Micro lamports for priority fee
-
-    direction: "in" as "in" | "out", // Swap direction: 'in' or 'out'
-
-    liquidityFile: "https://api.raydium.io/v2/sdk/liquidity/mainnet.json",
-
-    maxRetries: 20,
-
-    retryIntervalMs: 3000,
-
-    intervalMs: 3000,
-  };
-  ```
-
-- For running the script you can simply run `yarn swap` on the root directory.
-  ```bash
-  yarn swap
-  ```
+3. **Execution:**
+   - To run the script, execute the following command in the root directory:
+     ```bash
+     yarn swap
+     ```
