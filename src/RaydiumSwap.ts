@@ -23,6 +23,7 @@ import {
 
 import { Wallet } from "@coral-xyz/anchor";
 import bs58 from "bs58";
+import { swapConfig } from "./swapConfig";
 
 /**
  * Class representing a Raydium Swap operation.
@@ -108,25 +109,25 @@ class RaydiumSwap {
    * @param {string} toToken - The mint address of the token to receive.
    * @param {number} amount - The amount of the token to swap.
    * @param {LiquidityPoolKeys} poolKeys - The liquidity pool keys.
-   * @param {number} [maxLamports=100000] - The maximum lamports to use for transaction fees.
+   * @param {number} [maxLamports] - The maximum lamports to use for transaction fees.
    * @param {boolean} [useVersionedTransaction=true] - Whether to use a versioned transaction.
    * @param {'in' | 'out'} [fixedSide='in'] - The fixed side of the swap ('in' or 'out').
-   * @returns { Promise<{transaction: Transaction | VersionedTransaction; numericValues: { numericMinAmountOut: number; numericAmountIn: number; }; }> }
+   * @returns { Promise<{ transaction: Transaction | VersionedTransaction; numericValues:Array<{numericMinAmountOut: number; numericAmountIn: number}>;}> }
    */
   async getSwapTransaction(
     toToken: string,
     amount: number,
     poolKeys: LiquidityPoolKeys,
-    maxLamports: number = 100000,
+    maxLamports: number = swapConfig.maxLamports,
     useVersionedTransaction = true,
     fixedSide: "in" | "out" = "in",
     slippageIn: number,
   ): Promise<{
     transaction: Transaction | VersionedTransaction;
-    numericValues: {
+    numericValues: Array<{
       numericMinAmountOut: number;
       numericAmountIn: number;
-    };
+    }>;
   }> {
     const directionIn = poolKeys.quoteMint.toString() == toToken;
     const { minAmountOut, amountIn } = await this.calcAmountOut(
@@ -139,8 +140,12 @@ class RaydiumSwap {
     const numericMinAmountOut = parseFloat(minAmountOut.toExact());
     const numericAmountIn = parseFloat(amountIn.toExact());
 
-    // console.log(`[DEBUG] SOL: ${numericAmountIn}`);
-    // console.log(`[DEBUG] expected token to recieve: ${numericMinAmountOut}`);
+    const numericValuesArray = [
+      {
+        numericMinAmountOut,
+        numericAmountIn,
+      },
+    ];
 
     const userTokenAccounts = await this.getOwnerTokenAccounts();
     const swapTransaction = await Liquidity.makeSwapInstructionSimple({
@@ -182,7 +187,7 @@ class RaydiumSwap {
 
       return {
         transaction: versionedTransaction,
-        numericValues: { numericMinAmountOut, numericAmountIn },
+        numericValues: numericValuesArray,
       };
     }
 
@@ -196,7 +201,7 @@ class RaydiumSwap {
 
     return {
       transaction: legacyTransaction,
-      numericValues: { numericMinAmountOut, numericAmountIn },
+      numericValues: numericValuesArray,
     };
   }
 
