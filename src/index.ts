@@ -11,8 +11,8 @@ import { logMessage } from "./logMessage";
  */
 async function initializeRaydiumSwap(raydiumSwap: RaydiumSwap) {
   await raydiumSwap.loadPoolKeys(swapConfig.liquidityFile);
-  logMessage("Raydium swap initialized.", "info");
-  logMessage("Pool keys loaded.", "info");
+  logMessage("Raydium swap initialized.", "success");
+  logMessage("Pool keys loaded.", "success");
 }
 
 /**
@@ -55,12 +55,13 @@ async function performSwap(
     swapConfig.tokenAAddress,
     tokenAddress,
   );
+
   if (!poolInfo) {
     throw new Error("Pool info not found");
   }
   logMessage("Pool info found.", "info");
 
-  const tx = await raydiumSwap.getSwapTransaction(
+  const { transaction, numericValues } = await raydiumSwap.getSwapTransaction(
     tokenAddress,
     solAmount,
     poolInfo,
@@ -73,21 +74,28 @@ async function performSwap(
   if (swapConfig.executeSwap) {
     const txid = swapConfig.useVersionedTransaction
       ? await raydiumSwap.sendVersionedTransaction(
-          tx as VersionedTransaction,
+          transaction as VersionedTransaction,
           swapConfig.maxRetries,
         )
       : await raydiumSwap.sendLegacyTransaction(
-          tx as Transaction,
+          transaction as Transaction,
           swapConfig.maxRetries,
         );
-    logMessage(`Transaction sent: https://solscan.io/tx/${txid}`, "info");
+    console.log(`SOL: ${numericValues.numericAmountIn}`);
+    console.log(
+      `expected ${tokenAddress} token to recieve: ${numericValues.numericMinAmountOut}`,
+    );
+    logMessage(`Transaction sent: https://solscan.io/tx/${txid}`, "warning");
   } else {
     const simRes = swapConfig.useVersionedTransaction
       ? await raydiumSwap.simulateVersionedTransaction(
-          tx as VersionedTransaction,
+          transaction as VersionedTransaction,
         )
-      : await raydiumSwap.simulateLegacyTransaction(tx as Transaction);
-    logMessage("Simulation result:", "info");
+      : await raydiumSwap.simulateLegacyTransaction(transaction as Transaction);
+    console.log(`SOL: ${numericValues.numericAmountIn}`);
+    console.log(
+      `expected ${tokenAddress} token to recieve: ${numericValues.numericMinAmountOut}`,
+    );
     console.log(simRes);
   }
 }
@@ -105,7 +113,7 @@ function setupShutdownHandler() {
 async function main() {
   const { tokenAddress, solAmount, slippage } = await getUserInputs();
   logMessage(
-    `User inputs loaded: \n Token Address - ${tokenAddress} \n SOL Amount - ${solAmount} \n Slippage - ${slippage}`,
+    `User inputs loaded: \nToken Address - ${tokenAddress} \nSOL Amount - ${solAmount} \nSlippage in % - ${slippage}`,
     "info",
   );
 

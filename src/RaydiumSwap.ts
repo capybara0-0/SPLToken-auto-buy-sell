@@ -6,6 +6,7 @@ import {
   VersionedTransaction,
   TransactionMessage,
 } from "@solana/web3.js";
+
 import {
   Liquidity,
   LiquidityPoolKeys,
@@ -17,7 +18,9 @@ import {
   TOKEN_PROGRAM_ID,
   Percent,
   SPL_ACCOUNT_LAYOUT,
+  Currency,
 } from "@raydium-io/raydium-sdk";
+
 import { Wallet } from "@coral-xyz/anchor";
 import bs58 from "bs58";
 
@@ -108,18 +111,23 @@ class RaydiumSwap {
    * @param {number} [maxLamports=100000] - The maximum lamports to use for transaction fees.
    * @param {boolean} [useVersionedTransaction=true] - Whether to use a versioned transaction.
    * @param {'in' | 'out'} [fixedSide='in'] - The fixed side of the swap ('in' or 'out').
-   * @returns {Promise<Transaction | VersionedTransaction>} The constructed swap transaction.
+   * @returns { Promise<{transaction: Transaction | VersionedTransaction; numericValues: { numericMinAmountOut: number; numericAmountIn: number; }; }> }
    */
   async getSwapTransaction(
     toToken: string,
-    // fromToken: string,
     amount: number,
     poolKeys: LiquidityPoolKeys,
     maxLamports: number = 100000,
     useVersionedTransaction = true,
     fixedSide: "in" | "out" = "in",
     slippageIn: number,
-  ): Promise<Transaction | VersionedTransaction> {
+  ): Promise<{
+    transaction: Transaction | VersionedTransaction;
+    numericValues: {
+      numericMinAmountOut: number;
+      numericAmountIn: number;
+    };
+  }> {
     const directionIn = poolKeys.quoteMint.toString() == toToken;
     const { minAmountOut, amountIn } = await this.calcAmountOut(
       poolKeys,
@@ -127,7 +135,12 @@ class RaydiumSwap {
       directionIn,
       slippageIn,
     );
-    console.log({ minAmountOut, amountIn });
+
+    const numericMinAmountOut = parseFloat(minAmountOut.toExact());
+    const numericAmountIn = parseFloat(amountIn.toExact());
+
+    // console.log(`[DEBUG] SOL: ${numericAmountIn}`);
+    // console.log(`[DEBUG] expected token to recieve: ${numericMinAmountOut}`);
 
     const userTokenAccounts = await this.getOwnerTokenAccounts();
     const swapTransaction = await Liquidity.makeSwapInstructionSimple({
@@ -151,12 +164,8 @@ class RaydiumSwap {
       },
     });
 
-    //[DEBUG]
-    console.log(
-      `[DEBUG] amountIn: ${amountIn.toFixed()}, amountOut: ${minAmountOut.toFixed()}`,
-    );
-
     const recentBlockhashForSwap = await this.connection.getLatestBlockhash();
+
     const instructions =
       swapTransaction.innerTransactions[0].instructions.filter(Boolean);
 
@@ -171,7 +180,10 @@ class RaydiumSwap {
 
       versionedTransaction.sign([this.wallet.payer]);
 
-      return versionedTransaction;
+      return {
+        transaction: versionedTransaction,
+        numericValues: { numericMinAmountOut, numericAmountIn },
+      };
     }
 
     const legacyTransaction = new Transaction({
@@ -182,7 +194,10 @@ class RaydiumSwap {
 
     legacyTransaction.add(...instructions);
 
-    return legacyTransaction;
+    return {
+      transaction: legacyTransaction,
+      numericValues: { numericMinAmountOut, numericAmountIn },
+    };
   }
 
   /**
