@@ -110,7 +110,7 @@ class RaydiumSwap {
    * @param {number} amount - The amount of the token to swap.
    * @param {LiquidityPoolKeys} poolKeys - The liquidity pool keys.
    * @param {number} [maxLamports] - The maximum lamports to use for transaction fees.
-   * @param {boolean} [useVersionedTransaction=true] - Whether to use a versioned transaction.
+   * @param {boolean} [useVersionedTransaction] - Whether to use a versioned transaction.
    * @param {'in' | 'out'} [fixedSide='in'] - The fixed side of the swap ('in' or 'out').
    * @returns { Promise<{ transaction: Transaction | VersionedTransaction; numericValues:Array<{numericMinAmountOut: number; numericAmountIn: number}>;}> }
    */
@@ -119,7 +119,7 @@ class RaydiumSwap {
     amount: number,
     poolKeys: LiquidityPoolKeys,
     maxLamports: number = swapConfig.maxLamports,
-    useVersionedTransaction = true,
+    useVersionedTransaction: boolean,
     fixedSide: "in" | "out" = "in",
     slippageIn: number,
   ): Promise<{

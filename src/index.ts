@@ -5,14 +5,15 @@ import { swapConfig } from "./swapConfig";
 import { getUserInputs } from "./prompts";
 import { logMessage } from "./logMessage";
 import { getTokenBalanceByOwnerAndMint } from "./fetchTokenAccountBalance";
+import { connection } from "./fetchTokenAccountBalance";
 import chalk from "chalk";
 
-let numericValuesHistory = [];
+let previousNumericValues = null;
+let latestNumericValues = null;
 
 async function initializeRaydiumSwap(raydiumSwap: RaydiumSwap) {
   await raydiumSwap.loadPoolKeys(swapConfig.liquidityFile);
   logMessage("Raydium swap initialized.", "success");
-  logMessage("Pool keys loaded.", "success");
 }
 
 async function runSwapLoop(
@@ -27,7 +28,7 @@ async function runSwapLoop(
     } catch (error) {
       logMessage(error.message, "error");
     }
-    await new Promise((resolve) => setTimeout(resolve, swapConfig.intervalMs));
+    await delay(swapConfig.intervalMs);
   }
 }
 
@@ -41,12 +42,7 @@ async function performSwap(
     swapConfig.tokenAAddress,
     tokenAddress,
   );
-
-  if (!poolInfo) {
-    throw new Error("Pool info not found");
-  }
-
-  logMessage("Pool info found.", "info");
+  if (!poolInfo) throw new Error("Pool info not found");
 
   const { transaction, numericValues } = await raydiumSwap.getSwapTransaction(
     tokenAddress,
@@ -57,84 +53,70 @@ async function performSwap(
     swapConfig.direction,
     slippage,
   );
+  updateNumericValues(numericValues);
 
-  numericValuesHistory.push(numericValues);
+  if (shouldExitSwap()) {
+    await executeExitSwap(raydiumSwap, tokenAddress, poolInfo, slippage);
+    return;
+  }
 
-  if (numericValuesHistory.length > 1) {
-    const latestNumericValues =
-      numericValuesHistory[numericValuesHistory.length - 1];
-    const previousNumericValues =
-      numericValuesHistory[numericValuesHistory.length - 2];
+  if (swapConfig.executeSwap) {
+    await executeSwap(raydiumSwap, transaction);
+  } else {
+    await simulateSwap(raydiumSwap, transaction);
+  }
+}
+
+function updateNumericValues(numericValues) {
+  previousNumericValues = latestNumericValues;
+  latestNumericValues = numericValues;
+}
+
+function shouldExitSwap() {
+  if (latestNumericValues && previousNumericValues) {
     const latestMinAmountOut = latestNumericValues[0].numericMinAmountOut;
+    console.log(`[latestMinAmountOut]`, latestMinAmountOut);
     const previousMinAmountOut = previousNumericValues[0].numericMinAmountOut;
+    console.log(`[previousMinAmountOut]`, previousMinAmountOut);
     const percentageChange =
       ((latestMinAmountOut - previousMinAmountOut) / previousMinAmountOut) *
       100;
-
-    console.log(`change in percentage: ${percentageChange.toFixed(2)}%`);
-
-    if (percentageChange >= swapConfig.exitTarget) {
-      const totalTokenAmount = await getTokenBalanceByOwnerAndMint(
-        swapConfig.OwnerAddress,
-        tokenAddress,
-      );
-
-      const { transaction, numericValues } =
-        await raydiumSwap.getSwapTransaction(
-          swapConfig.tokenAAddress,
-          totalTokenAmount,
-          poolInfo,
-          swapConfig.maxLamports,
-          swapConfig.useVersionedTransaction,
-          swapConfig.direction,
-          slippage,
-        );
-      console.log(
-        `[SWAP] ${chalk.yellow(tokenAddress)} ${chalk.red(
-          totalTokenAmount,
-        )}  --> ${chalk.yellow(swapConfig.tokenAAddress)}  ${chalk.green(
-          numericValues[0].numericMinAmountOut,
-        )}`,
-      );
-      if (swapConfig.executeSwap) {
-        const txid = swapConfig.useVersionedTransaction
-          ? await raydiumSwap.sendVersionedTransaction(
-              transaction as VersionedTransaction,
-              swapConfig.maxRetries,
-            )
-          : await raydiumSwap.sendLegacyTransaction(
-              transaction as Transaction,
-              swapConfig.maxRetries,
-            );
-
-        logMessage(`Transaction sent: https://solscan.io/tx/${txid}`, "info");
-      } else {
-        const simRes = swapConfig.useVersionedTransaction
-          ? await raydiumSwap.simulateVersionedTransaction(
-              transaction as VersionedTransaction,
-            )
-          : await raydiumSwap.simulateLegacyTransaction(
-              transaction as Transaction,
-            );
-
-        // DEBUG
-        console.log(`[DEBUG] `, simRes);
-      }
-      return;
-    }
-  } else {
-    console.log("First iteration, no previous data for comparison.");
+    console.log(`[STATUS] Price change: `, percentageChange);
+    return percentageChange >= swapConfig.exitTarget;
   }
+  return false;
+}
 
-  console.log(
-    `[SWAP] ${chalk.yellow(swapConfig.tokenAAddress)} ${chalk.red(
-      solAmount,
-    )} --> ${chalk.yellow(tokenAddress)}  ${chalk.green(
-      numericValues[0].numericMinAmountOut,
-    )} `,
+async function executeExitSwap(raydiumSwap, tokenAddress, poolInfo, slippage) {
+  const totalTokenAmount = await getTokenBalanceByOwnerAndMint(
+    swapConfig.OwnerAddress,
+    tokenAddress,
   );
 
-  if (swapConfig.executeSwap) {
+  const { transaction, numericValues } = await raydiumSwap.getSwapTransaction(
+    swapConfig.tokenAAddress,
+    totalTokenAmount,
+    poolInfo,
+    swapConfig.maxLamports,
+    swapConfig.useVersionedTransaction,
+    swapConfig.direction,
+    slippage,
+  );
+  console.log(
+    `[SWAPPING] ${chalk.yellow(tokenAddress)} ${chalk.red(
+      totalTokenAmount,
+    )} --> ${chalk.yellow(swapConfig.tokenAAddress)} ${chalk.green(
+      numericValues[0].numericMinAmountOut,
+    )}`,
+  );
+  await executeSwap(raydiumSwap, transaction);
+}
+
+async function executeSwap(
+  raydiumSwap: RaydiumSwap,
+  transaction: Transaction | VersionedTransaction,
+) {
+  try {
     const txid = swapConfig.useVersionedTransaction
       ? await raydiumSwap.sendVersionedTransaction(
           transaction as VersionedTransaction,
@@ -144,25 +126,35 @@ async function performSwap(
           transaction as Transaction,
           swapConfig.maxRetries,
         );
-
-    logMessage(`Transaction sent: https://solscan.io/tx/${txid}`, "info");
-  } else {
-    const simRes = swapConfig.useVersionedTransaction
-      ? await raydiumSwap.simulateVersionedTransaction(
-          transaction as VersionedTransaction,
-        )
-      : await raydiumSwap.simulateLegacyTransaction(transaction as Transaction);
-
-    //[DEBUG]
-    console.log(`[DEBUG] `, simRes);
+    const confirmation = await connection.confirmTransaction(txid, "confirmed");
+    if (confirmation.value.err) {
+      console.error(
+        chalk.red("[ERROR] Transaction failed: ", confirmation.value.err),
+      );
+    } else {
+      console.log(chalk.cyan(`[SUCCESS] https://solscan.io/tx/${txid}`));
+      console.log(chalk.gray("-").repeat(50));
+    }
+  } catch (error) {
+    console.error(chalk.red("[ERROR] Error sending transaction: "), error);
   }
 }
 
-function setupShutdownHandler() {
-  process.on("SIGINT", () => {
-    logMessage("Interrupted, shutting down...", "error");
-    process.exit();
-  });
+async function simulateSwap(
+  raydiumSwap: RaydiumSwap,
+  transaction: Transaction | VersionedTransaction,
+) {
+  const simRes = swapConfig.useVersionedTransaction
+    ? await raydiumSwap.simulateVersionedTransaction(
+        transaction as VersionedTransaction,
+      )
+    : await raydiumSwap.simulateLegacyTransaction(transaction as Transaction);
+  console.log(`[SIMULATION]`, simRes);
+  console.log(chalk.gray("-").repeat(50));
+}
+
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function main() {
@@ -171,14 +163,15 @@ async function main() {
     `User inputs loaded: \nToken Address - ${tokenAddress} \nSOL Amount - ${solAmount} \nSlippage in % - ${slippage}`,
     "info",
   );
-
   const raydiumSwap = new RaydiumSwap(
     process.env.RPC_URL,
     process.env.WALLET_PRIVATE_KEY,
   );
-
   await initializeRaydiumSwap(raydiumSwap);
-  setupShutdownHandler();
+  process.on("SIGINT", () => {
+    logMessage("Interrupted, shutting down...", "error");
+    process.exit();
+  });
   await runSwapLoop(raydiumSwap, tokenAddress, solAmount, slippage);
 }
 

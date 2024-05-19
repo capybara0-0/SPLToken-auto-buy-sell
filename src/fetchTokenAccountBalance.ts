@@ -7,7 +7,7 @@ import {
 } from "@solana/spl-token";
 
 const rpcUrl = process.env.RPC_URL || "https://api.mainnet-beta.solana.com";
-const connection = new Connection(rpcUrl, "confirmed");
+export const connection = new Connection(rpcUrl, "confirmed");
 
 export async function getTokenBalanceByOwnerAndMint(
   ownerAddress: string,
