@@ -216,7 +216,7 @@ class RaydiumSwap {
       tx,
       [this.wallet.payer],
       {
-        skipPreflight: true,
+        skipPreflight: false,
         maxRetries: maxRetries,
       },
     );
@@ -235,7 +235,7 @@ class RaydiumSwap {
     maxRetries?: number,
   ) {
     const txid = await this.connection.sendTransaction(tx, {
-      skipPreflight: true,
+      skipPreflight: false,
       maxRetries: maxRetries,
     });
 

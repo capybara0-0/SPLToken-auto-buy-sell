@@ -19,7 +19,5 @@ export const swapConfig = {
 
   maxRetries: 20,
 
-  retryIntervalMs: 3000,
-
-  intervalMs: 3000,
+  intervalMs: 4000,
 };

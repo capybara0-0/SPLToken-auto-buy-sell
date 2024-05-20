@@ -53,3 +53,7 @@ export async function getUserInputs() {
 
   return { tokenAddress, solAmount, slippage };
 }
+
+export async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

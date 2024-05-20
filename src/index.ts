@@ -7,6 +7,7 @@ import { logMessage } from "./logMessage";
 import { getTokenBalanceByOwnerAndMint } from "./fetchTokenAccountBalance";
 import { connection } from "./fetchTokenAccountBalance";
 import chalk from "chalk";
+import { delay } from "./prompts";
 
 let previousNumericValues = null;
 let latestNumericValues = null;
@@ -74,14 +75,14 @@ function updateNumericValues(numericValues) {
 
 function shouldExitSwap() {
   if (latestNumericValues && previousNumericValues) {
-    const latestMinAmountOut = latestNumericValues[0].numericMinAmountOut;
-    console.log(`[latestMinAmountOut]`, latestMinAmountOut);
     const previousMinAmountOut = previousNumericValues[0].numericMinAmountOut;
-    console.log(`[previousMinAmountOut]`, previousMinAmountOut);
+    console.log(chalk.blue(`[previousMinAmountOut]: `), previousMinAmountOut);
+    const latestMinAmountOut = latestNumericValues[0].numericMinAmountOut;
+    console.log(chalk.blue(`[latestMinAmountOut]: `), latestMinAmountOut);
     const percentageChange =
       ((latestMinAmountOut - previousMinAmountOut) / previousMinAmountOut) *
       100;
-    console.log(`[STATUS] Price change: `, percentageChange);
+    console.log(chalk.blue(`[STATUS] Price change: `), percentageChange);
     return percentageChange >= swapConfig.exitTarget;
   }
   return false;
@@ -93,6 +94,10 @@ async function executeExitSwap(raydiumSwap, tokenAddress, poolInfo, slippage) {
     tokenAddress,
   );
 
+  if (totalTokenAmount <= 0) {
+    console.log(chalk.yellow("[WARNING]: NO TOKENS AVAILABLE FOR SWAPPING. "));
+    return;
+  }
   const { transaction, numericValues } = await raydiumSwap.getSwapTransaction(
     swapConfig.tokenAAddress,
     totalTokenAmount,
@@ -116,27 +121,42 @@ async function executeSwap(
   raydiumSwap: RaydiumSwap,
   transaction: Transaction | VersionedTransaction,
 ) {
-  try {
-    const txid = swapConfig.useVersionedTransaction
-      ? await raydiumSwap.sendVersionedTransaction(
-          transaction as VersionedTransaction,
-          swapConfig.maxRetries,
-        )
-      : await raydiumSwap.sendLegacyTransaction(
-          transaction as Transaction,
-          swapConfig.maxRetries,
-        );
-    const confirmation = await connection.confirmTransaction(txid, "confirmed");
-    if (confirmation.value.err) {
-      console.error(
-        chalk.red("[ERROR] Transaction failed: ", confirmation.value.err),
+  const retryCount = 3;
+
+  for (let attempt = 1; attempt <= retryCount; attempt++) {
+    try {
+      const txid = swapConfig.useVersionedTransaction
+        ? await raydiumSwap.sendVersionedTransaction(
+            transaction as VersionedTransaction,
+            swapConfig.maxRetries,
+          )
+        : await raydiumSwap.sendLegacyTransaction(
+            transaction as Transaction,
+            swapConfig.maxRetries,
+          );
+
+      const confirmation = await connection.confirmTransaction(
+        txid,
+        "confirmed",
       );
-    } else {
-      console.log(chalk.cyan(`[SUCCESS] https://solscan.io/tx/${txid}`));
-      console.log(chalk.gray("-").repeat(50));
+
+      if (confirmation.value.err) {
+        console.error(
+          chalk.red("[ERROR] Transaction failed: ", confirmation.value.err),
+        );
+      } else {
+        console.log(chalk.cyan(`[SUCCESS] https://solscan.io/tx/${txid}`));
+        console.log(chalk.magenta("=").repeat(60));
+        break;
+      }
+    } catch (error) {
+      console.error(chalk.yellow("[WARNING] : "), error);
+      if (attempt === retryCount) {
+        console.error(`Transaction failed after ${retryCount} attempts.`);
+        console.log(chalk.magenta("=").repeat(60));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-  } catch (error) {
-    console.error(chalk.red("[ERROR] Error sending transaction: "), error);
   }
 }
 
@@ -150,28 +170,28 @@ async function simulateSwap(
       )
     : await raydiumSwap.simulateLegacyTransaction(transaction as Transaction);
   console.log(`[SIMULATION]`, simRes);
-  console.log(chalk.gray("-").repeat(50));
-}
-
-async function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  console.log(chalk.magenta("=").repeat(60));
 }
 
 async function main() {
   const { tokenAddress, solAmount, slippage } = await getUserInputs();
+
   logMessage(
     `User inputs loaded: \nToken Address - ${tokenAddress} \nSOL Amount - ${solAmount} \nSlippage in % - ${slippage}`,
     "info",
   );
+
   const raydiumSwap = new RaydiumSwap(
     process.env.RPC_URL,
     process.env.WALLET_PRIVATE_KEY,
   );
+
   await initializeRaydiumSwap(raydiumSwap);
   process.on("SIGINT", () => {
     logMessage("Interrupted, shutting down...", "error");
     process.exit();
   });
+
   await runSwapLoop(raydiumSwap, tokenAddress, solAmount, slippage);
 }
 
