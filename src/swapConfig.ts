@@ -1,11 +1,9 @@
 export const swapConfig = {
   executeSwap: true, // Send tx when true, simulate tx when false
 
-  useVersionedTransaction: true,
+  useVersionedTransaction: true, // wether you want to user versioned transaction or leegacy transaction
 
   tokenAAddress: "So11111111111111111111111111111111111111112", // Token to swap for the other, SOL in this case
-
-  // tokenAAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
 
   maxLamports: 2000000, // Micro lamports for priority fee
 
@@ -13,11 +11,13 @@ export const swapConfig = {
 
   liquidityFile: "https://api.raydium.io/v2/sdk/liquidity/mainnet.json",
 
-  OwnerAddress: "3Gf1W1uWQ286zcNYmZxYXBrhgACP8r174zcgE2TxRZCP",
+  OwnerAddress: "3Gf1W1uWQ286zcNYmZxYXBrhgACP8r174zcgE2TxRZCP", // Your wallet PublicKey
 
-  exitTarget: -1, // Percentage
+  exitTarget: -1, // Exit target in percentage
 
   maxRetries: 20,
 
-  intervalMs: 4000,
+  intervalMs: 4000, // Interval between every swap
+
+  retryCount: 3, // Retry if the transaction fails.
 };

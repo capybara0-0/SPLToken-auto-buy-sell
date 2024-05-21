@@ -90,6 +90,13 @@ async function performSwap(
   }
 
   if (swapConfig.executeSwap) {
+    console.log(
+      `[SWAPPING] ${chalk.yellow(swapConfig.tokenAAddress)} ${chalk.red(
+        solAmount,
+      )} --> ${chalk.yellow(tokenAddress)} ${chalk.green(
+        numericValues[0].numericMinAmountOut,
+      )}`,
+    );
     await executeSwap(raydiumSwap, transaction);
   } else {
     await simulateSwap(raydiumSwap, transaction);
@@ -118,12 +125,15 @@ function shouldExitSwap() {
   if (latestNumericValues && previousNumericValues) {
     const previousMinAmountOut = previousNumericValues[0].numericMinAmountOut;
     console.log(chalk.blue(`[previousMinAmountOut]: `), previousMinAmountOut);
+
     const latestMinAmountOut = latestNumericValues[0].numericMinAmountOut;
     console.log(chalk.blue(`[latestMinAmountOut]: `), latestMinAmountOut);
+
     const percentageChange =
       ((latestMinAmountOut - previousMinAmountOut) / previousMinAmountOut) *
       100;
     console.log(chalk.blue(`[STATUS] Price change: `), percentageChange);
+
     return percentageChange >= swapConfig.exitTarget;
   }
   return false;
@@ -180,9 +190,8 @@ async function executeSwap(
   raydiumSwap: RaydiumSwap,
   transaction: Transaction | VersionedTransaction,
 ) {
-  const retryCount = 3;
-
-  for (let attempt = 1; attempt <= retryCount; attempt++) {
+  let backoffMs = 1000;
+  for (let attempt = 1; attempt <= swapConfig.retryCount; attempt++) {
     try {
       const txid = swapConfig.useVersionedTransaction
         ? await raydiumSwap.sendVersionedTransaction(
@@ -210,11 +219,12 @@ async function executeSwap(
       }
     } catch (error) {
       console.error(chalk.yellow("[WARNING] : "), error);
-      if (attempt === retryCount) {
-        console.error(`Transaction failed after ${retryCount} attempts.`);
+      if (attempt === swapConfig.retryCount) {
+        console.error(`Transaction failed after ${attempt} attempts.`);
         console.log(chalk.magenta("=").repeat(60));
       }
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      backoffMs *= 2;
     }
   }
 }
@@ -236,6 +246,7 @@ async function simulateSwap(
         transaction as VersionedTransaction,
       )
     : await raydiumSwap.simulateLegacyTransaction(transaction as Transaction);
+
   console.log(`[SIMULATION]`, simRes);
   console.log(chalk.magenta("=").repeat(60));
 }
