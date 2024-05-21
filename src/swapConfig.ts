@@ -11,9 +11,9 @@ export const swapConfig = {
 
   liquidityFile: "https://api.raydium.io/v2/sdk/liquidity/mainnet.json",
 
-  OwnerAddress: "3Gf1W1uWQ286zcNYmZxYXBrhgACP8r174zcgE2TxRZCP", // Your wallet PublicKey
+  OwnerAddress: "", // Your wallet PublicKey
 
-  exitTarget: -1, // Exit target in percentage
+  exitTarget: 1, // Exit target in percentage (e.g. +1%)
 
   maxRetries: 20,
 
