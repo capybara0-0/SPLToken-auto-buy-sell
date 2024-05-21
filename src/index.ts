@@ -1,22 +1,39 @@
 import RaydiumSwap from "./RaydiumSwap";
 import { Transaction, VersionedTransaction } from "@solana/web3.js";
+import chalk from "chalk";
 import "dotenv/config";
 import { swapConfig } from "./swapConfig";
-import { getUserInputs } from "./prompts";
+import { getUserInputs, delay } from "./prompts";
 import { logMessage } from "./logMessage";
-import { getTokenBalanceByOwnerAndMint } from "./fetchTokenAccountBalance";
-import { connection } from "./fetchTokenAccountBalance";
-import chalk from "chalk";
-import { delay } from "./prompts";
+import {
+  getTokenBalanceByOwnerAndMint,
+  connection,
+} from "./fetchTokenAccountBalance";
 
 let previousNumericValues = null;
 let latestNumericValues = null;
 
+/**
+ * Initializes the Raydium swap by loading pool keys from a specified liquidity file.
+ * This function sets up the necessary data for performing swaps on the Raydium platform.
+ *
+ * @param raydiumSwap - An instance of the RaydiumSwap class, which encapsulates the logic for interacting with the Raydium platform.
+ */
 async function initializeRaydiumSwap(raydiumSwap: RaydiumSwap) {
   await raydiumSwap.loadPoolKeys(swapConfig.liquidityFile);
   logMessage("Raydium swap initialized.", "success");
 }
 
+/**
+ * Executes a continuous loop for performing swaps on the Raydium platform.
+ * This loop will keep attempting to perform swaps based on the provided parameters until interrupted.
+ * It handles errors gracefully by logging them and continuing with the next iteration.
+ *
+ * @param raydiumSwap - An instance of the RaydiumSwap class, which encapsulates the logic for interacting with the Raydium platform.
+ * @param tokenAddress - The address of the token to be swapped.
+ * @param solAmount - The amount of SOL to be used in the swap.
+ * @param slippage - The acceptable slippage percentage for the swap.
+ */
 async function runSwapLoop(
   raydiumSwap: RaydiumSwap,
   tokenAddress: string,
@@ -33,6 +50,17 @@ async function runSwapLoop(
   }
 }
 
+/**
+ * Performs a single swap operation on the Raydium platform.
+ * This function calculates the swap details, updates numeric values for tracking price changes,
+ * and decides whether to execute the swap or simulate it based on configuration settings.
+ * If conditions for exiting the swap loop are met, it initiates the exit swap process.
+ *
+ * @param raydiumSwap - An instance of the RaydiumSwap class, which encapsulates the logic for interacting with the Raydium platform.
+ * @param tokenAddress - The address of the token to be swapped.
+ * @param solAmount - The amount of SOL to be used in the swap.
+ * @param slippage - The acceptable slippage percentage for the swap.
+ */
 async function performSwap(
   raydiumSwap: RaydiumSwap,
   tokenAddress: string,
@@ -68,11 +96,24 @@ async function performSwap(
   }
 }
 
+/**
+ * Updates the global variables `previousNumericValues` and `latestNumericValues` with the new numeric values obtained from a swap transaction.
+ * These variables are used to track the price changes between consecutive swap operations.
+ *
+ * @param numericValues - An array containing objects with properties `numericMinAmountOut` and `numericAmountIn`,
+ *                        representing the minimum expected amount out and the actual amount in for the swap transaction.
+ */
 function updateNumericValues(numericValues) {
   previousNumericValues = latestNumericValues;
   latestNumericValues = numericValues;
 }
 
+/**
+ * Determines whether the swap loop should exit based on the percentage change in the minimum amount out between two consecutive swaps.
+ * It compares the latest and previous numeric values to calculate the price change percentage and checks if it meets or exceeds the configured exit target.
+ *
+ * @returns {boolean} True if the calculated percentage change meets or exceeds the exit target, indicating that the swap loop should exit. False otherwise.
+ */
 function shouldExitSwap() {
   if (latestNumericValues && previousNumericValues) {
     const previousMinAmountOut = previousNumericValues[0].numericMinAmountOut;
@@ -88,6 +129,16 @@ function shouldExitSwap() {
   return false;
 }
 
+/**
+ * Executes the exit swap process when the conditions for exiting the swap loop are met.
+ * This involves calculating the total token amount available for swapping, creating a swap transaction for the entire amount,
+ * and then executing the swap. If no tokens are available for swapping, it logs a warning and returns early.
+ *
+ * @param raydiumSwap - An instance of the RaydiumSwap class, which encapsulates the logic for interacting with the Raydium platform.
+ * @param tokenAddress - The address of the token to be swapped back to the original token.
+ * @param poolInfo - Information about the liquidity pool being used for the swap.
+ * @param slippage - The acceptable slippage percentage for the swap.
+ */
 async function executeExitSwap(raydiumSwap, tokenAddress, poolInfo, slippage) {
   const totalTokenAmount = await getTokenBalanceByOwnerAndMint(
     swapConfig.OwnerAddress,
@@ -117,6 +168,14 @@ async function executeExitSwap(raydiumSwap, tokenAddress, poolInfo, slippage) {
   await executeSwap(raydiumSwap, transaction);
 }
 
+/**
+ * Executes a swap transaction on the Raydium platform.
+ * This function attempts to send the transaction multiple times in case of failure, up to a maximum number of retries defined in the configuration.
+ * It logs the transaction ID upon success or the reason for failure upon each unsuccessful attempt.
+ *
+ * @param raydiumSwap - An instance of the RaydiumSwap class, which encapsulates the logic for interacting with the Raydium platform.
+ * @param transaction - The transaction object to be executed, either a legacy Transaction or a VersionedTransaction.
+ */
 async function executeSwap(
   raydiumSwap: RaydiumSwap,
   transaction: Transaction | VersionedTransaction,
@@ -160,6 +219,14 @@ async function executeSwap(
   }
 }
 
+/**
+ * Simulates a swap transaction on the Raydium platform without actually executing it.
+ * This function is used for testing purposes to understand the potential outcome of a swap without committing resources.
+ * It logs the simulation result for review.
+ *
+ * @param raydiumSwap - An instance of the RaydiumSwap class, which encapsulates the logic for interacting with the Raydium platform.
+ * @param transaction - The transaction object to be simulated, either a legacy Transaction or a VersionedTransaction.
+ */
 async function simulateSwap(
   raydiumSwap: RaydiumSwap,
   transaction: Transaction | VersionedTransaction,
@@ -173,6 +240,13 @@ async function simulateSwap(
   console.log(chalk.magenta("=").repeat(60));
 }
 
+/**
+ * Main entry point of the script.
+ * Initializes the Raydium swap environment, loads user inputs, and starts the swap loop.
+ * Also sets up an interrupt handler to gracefully shut down the process.
+ *
+ * @throws Will throw an error if there's an issue during the initialization or swap process.
+ */
 async function main() {
   const { tokenAddress, solAmount, slippage } = await getUserInputs();
 
